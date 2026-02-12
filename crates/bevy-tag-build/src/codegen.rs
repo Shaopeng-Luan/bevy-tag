@@ -126,7 +126,7 @@ fn generate_namespace_code_internal(
 
     if !aliases.is_empty() {
         output.push_str("\n// ══════════════════════════════════════════════════════════════════════════════\n");
-        output.push_str("// Redirects for renamed paths (UE5-style redirectors)\n");
+        output.push_str("// Redirects for renamed paths\n");
         output.push_str("// ══════════════════════════════════════════════════════════════════════════════\n\n");
 
         for (old_path, new_path) in aliases {

@@ -173,14 +173,13 @@ impl TagsConfig {
                 )));
             }
             let mut chars = seg.chars();
-            if let Some(first) = chars.next() {
-                if !first.is_alphabetic() && first != '_' {
+            if let Some(first) = chars.next()
+                && !first.is_alphabetic() && first != '_' {
                     return Err(TagsConfigError::Validation(format!(
                         "Invalid path '{}': segment '{}' must start with letter or underscore",
                         path, seg
                     )));
                 }
-            }
             for c in chars {
                 if !c.is_alphanumeric() && c != '_' {
                     return Err(TagsConfigError::Validation(format!(
@@ -232,14 +231,13 @@ impl TagsConfig {
                 }
                 // Check valid identifier (starts with letter/underscore, contains alphanumeric/_)
                 let mut chars = seg.chars();
-                if let Some(first) = chars.next() {
-                    if !first.is_alphabetic() && first != '_' {
+                if let Some(first) = chars.next()
+                    && !first.is_alphabetic() && first != '_' {
                         return Err(TagsConfigError::Validation(format!(
                             "Invalid path '{}': segment '{}' must start with letter or underscore",
                             path, seg
                         )));
                     }
-                }
                 for c in chars {
                     if !c.is_alphanumeric() && c != '_' {
                         return Err(TagsConfigError::Validation(format!(
