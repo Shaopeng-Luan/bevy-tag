@@ -1,0 +1,17 @@
+[package]
+name = "bevy-tag-build"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Build-time utilities for bevy-tag: TOML parsing, lock file management, and code generation"
+keywords = ["bevy", "gamedev", "tags", "build", "codegen"]
+categories = ["development-tools::build-utils", "game-development"]
+
+[dependencies]
+toml = "0.8"
+serde.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+[dev-dependencies]
+tempfile = "3.15"
