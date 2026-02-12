@@ -1,5 +1,9 @@
 # bevy-tag
 
+[![Crates.io](https://img.shields.io/crates/v/bevy-tag.svg)](https://crates.io/crates/bevy-tag)
+[![Docs.rs](https://docs.rs/bevy-tag/badge.svg)](https://docs.rs/bevy-tag)
+[![License](https://img.shields.io/crates/l/bevy-tag.svg)](https://github.com/Shaopeng-Luan/bevy-tag#license)
+
 > **Still under heavy development** - API may change significantly before 1.0 release.
 
 A hierarchical namespace tag system for Rust, inspired by Unreal Engine 5's GameplayTags. Provides stable, compile-time identifiers with O(1) subtree membership checks.
