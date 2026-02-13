@@ -6,7 +6,7 @@
 //! - Use `gid_is_descendant_of` for game logic (e.g., damage type filtering)
 //! - Use tuples with `IntoGids` for ergonomic GID collection
 
-use bevy_tag::{gid_is_descendant_of, GID, IntoGid, IntoGids, NamespaceRegistry};
+use bevy_tag::{gid_is_descendant_of, GID, NamespaceRegistry};
 use bevy_tag_macro::namespace;
 
 namespace! {
@@ -38,13 +38,13 @@ fn main() {
     // 1. Basic descendant check - no registry needed!
     println!(
         "  Is Slash a descendant of Physical? {}",
-        gid_is_descendant_of(DamageTags::physical::Slash::GID, DamageTags::Physical::GID)
+        gid_is_descendant_of(DamageTags::Physical::Slash::GID, DamageTags::Physical::GID)
     );
     println!();
 
     // 2. Collect all descendants
     println!("All descendants of 'Physical':");
-    for gid in registry.descendants_of(DamageTags::Physical) {
+    for gid in registry.descendants_of(DamageTags::Physical::GID) {
         if let Some(path) = registry.path_of(gid) {
             println!("  - {}", path);
         }
@@ -52,7 +52,7 @@ fn main() {
     println!();
 
     println!("All descendants of 'Magical':");
-    for gid in registry.descendants_of(DamageTags::Magical) {
+    for gid in registry.descendants_of(DamageTags::Magical::GID) {
         if let Some(path) = registry.path_of(gid) {
             println!("  - {}", path);
         }
@@ -62,24 +62,24 @@ fn main() {
     let entities = vec![
         Entity {
             name: "Stone Golem",
-            resistances: vec![DamageTags::Physical.into_gid()],
+            resistances: vec![DamageTags::Physical::GID],
         },
         Entity {
             name: "Fire Elemental",
-            resistances: vec![DamageTags::magical::Fire.into_gid()],
+            resistances: vec![DamageTags::Magical::Fire::GID],
         },
         Entity {
             name: "Ghost",
-            // Multiple tags - use tuple.into_gids()
-            resistances: (DamageTags::Physical, DamageTags::Magical).into_gids(),
+            // Multiple tags
+            resistances: vec![DamageTags::Physical::GID, DamageTags::Magical::GID],
         },
     ];
 
-    let damage_types: [(&str, u128); 4] = [
-        ("Sword (Slash)", DamageTags::physical::Slash.into_gid()),
-        ("Fireball (Fire)", DamageTags::magical::Fire.into_gid()),
-        ("Ice Shard (Ice)", DamageTags::magical::Ice.into_gid()),
-        ("Divine Smite (True)", DamageTags::True.into_gid()),
+    let damage_types: [(&str, GID); 4] = [
+        ("Sword (Slash)", DamageTags::Physical::Slash::GID),
+        ("Fireball (Fire)", DamageTags::Magical::Fire::GID),
+        ("Ice Shard (Ice)", DamageTags::Magical::Ice::GID),
+        ("Divine Smite (True)", DamageTags::True::GID),
     ];
 
     for entity in &entities {

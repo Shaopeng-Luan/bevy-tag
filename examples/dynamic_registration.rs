@@ -74,7 +74,7 @@ fn main() {
     // 5. Descendant checks work across static/dynamic (no registry needed!)
     println!("Descendant checks:");
     let item = StaticTags::Item::GID;
-    let weapon = StaticTags::item::Weapon::GID;
+    let weapon = StaticTags::Item::Weapon::GID;
 
     println!(
         "  Is Longsword under Item.Weapon? {}",

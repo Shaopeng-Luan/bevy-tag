@@ -36,7 +36,7 @@ namespace! {
         }
 
         // Old paths redirected to new locations
-        // These generate: pub type OldSword = Redirect<equipment::weapon::Blade>;
+        // These generate: pub type Tag = Redirect<Equipment::Weapon::Blade::Tag>;
         Legacy {
             #[redirect = "Equipment.Weapon.Blade"]
             OldSword;
@@ -61,10 +61,10 @@ fn main() {
     // -------------------------------------------------------------------------
     println!("1. Redirect GID equality:");
 
-    let blade_gid = Tags::equipment::weapon::Blade::GID;
-    // Tags::legacy::OldSword is now Redirect<equipment::weapon::Blade>
+    let blade_gid = Tags::Equipment::Weapon::Blade::GID;
+    // Tags::Legacy::OldSword is now Redirect<Equipment::Weapon::Blade::Tag>
     #[allow(deprecated)]
-    let redirected_gid = Tags::legacy::OldSword::GID;
+    let redirected_gid = Tags::Legacy::OldSword::GID;
 
     println!("   Equipment.Weapon.Blade GID: {:#034x}", blade_gid);
     println!("   Legacy.OldSword GID:        {:#034x}", redirected_gid);
@@ -77,8 +77,8 @@ fn main() {
     println!("2. PATH returns canonical location:");
 
     #[allow(deprecated)]
-    let redirected_path = Tags::legacy::OldSword::PATH;
-    let canonical_path = Tags::equipment::weapon::Blade::PATH;
+    let redirected_path = Tags::Legacy::OldSword::PATH;
+    let canonical_path = Tags::Equipment::Weapon::Blade::PATH;
 
     println!("   Legacy.OldSword::PATH:          {}", redirected_path);
     println!("   Equipment.Weapon.Blade::PATH:   {}", canonical_path);
@@ -90,7 +90,7 @@ fn main() {
     // -------------------------------------------------------------------------
     println!("3. Type-level redirect information:");
 
-    // The type itself is Redirect<equipment::weapon::Blade>
+    // The type itself is Redirect<Equipment::Weapon::Blade::Tag>
     fn show_type<T: NamespaceTag>(_: T) {
         println!("   Type PATH: {}", T::PATH);
         println!("   Type GID:  {:#034x}", T::GID);
@@ -98,7 +98,7 @@ fn main() {
 
     println!("   Calling show_type with redirected OldSword:");
     #[allow(deprecated)]
-    show_type(Tags::legacy::OldSword::default());
+    show_type(Tags::Legacy::OldSword::Tag::default());
     println!();
 
     // -------------------------------------------------------------------------
@@ -113,7 +113,7 @@ fn main() {
         gid_is_descendant_of(blade_gid, equipment)
     );
     #[allow(deprecated)]
-    let old_sword_gid = Tags::legacy::OldSword::GID;
+    let old_sword_gid = Tags::Legacy::OldSword::GID;
     println!(
         "   Is redirected OldSword under Equipment? {}",
         gid_is_descendant_of(old_sword_gid, equipment)
@@ -129,7 +129,7 @@ fn main() {
 
     // Note: DEFINITIONS doesn't include redirect nodes, only canonical paths
     #[allow(deprecated)]
-    if let Some(path) = registry.path_of(Tags::legacy::OldSword::GID) {
+    if let Some(path) = registry.path_of(Tags::Legacy::OldSword::GID) {
         println!("   Redirected OldSword resolves to: '{}'", path);
     }
     println!();

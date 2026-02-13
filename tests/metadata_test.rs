@@ -48,20 +48,20 @@ namespace! {
 
 #[test]
 fn test_constant_metadata() {
-    // Access const metadata
-    assert_eq!(GameplayTags::BasicAttack::DAMAGE, 50);
-    assert_eq!(GameplayTags::BasicAttack::COST, 10);
-    assert_eq!(GameplayTags::BasicAttack::RANGE, 5.0);
+    // Access const metadata via Tag struct
+    assert_eq!(GameplayTags::BasicAttack::Tag::DAMAGE, 50);
+    assert_eq!(GameplayTags::BasicAttack::Tag::COST, 10);
+    assert_eq!(GameplayTags::BasicAttack::Tag::RANGE, 5.0);
 
-    assert_eq!(GameplayTags::HeavyAttack::DAMAGE, 100);
-    assert_eq!(GameplayTags::HeavyAttack::COOLDOWN, 2.5);
+    assert_eq!(GameplayTags::HeavyAttack::Tag::DAMAGE, 100);
+    assert_eq!(GameplayTags::HeavyAttack::Tag::COOLDOWN, 2.5);
 
-    // Access via snake_case module
-    assert_eq!(GameplayTags::movement::Sprint::SPEED_MULTIPLIER, 1.5);
-    assert_eq!(GameplayTags::movement::Sprint::STAMINA_DRAIN, 2.0);
+    // Access via nested modules (CamelCase)
+    assert_eq!(GameplayTags::Movement::Sprint::Tag::SPEED_MULTIPLIER, 1.5);
+    assert_eq!(GameplayTags::Movement::Sprint::Tag::STAMINA_DRAIN, 2.0);
 
-    assert_eq!(GameplayTags::movement::Dash::SPEED_MULTIPLIER, 2.0);
-    assert_eq!(GameplayTags::movement::Dash::DURATION, 0.3);
+    assert_eq!(GameplayTags::Movement::Dash::Tag::SPEED_MULTIPLIER, 2.0);
+    assert_eq!(GameplayTags::Movement::Dash::Tag::DURATION, 0.3);
 }
 
 #[test]
@@ -70,9 +70,9 @@ fn test_data_type_association() {
     fn requires_ability_data<T: HasData<Data = crate::AbilityData>>() {}
     fn requires_movement_data<T: HasData<Data = crate::MovementData>>() {}
 
-    requires_ability_data::<GameplayTags::HeavyAttack>();
-    requires_ability_data::<GameplayTags::Status>();
-    requires_movement_data::<GameplayTags::Dash>();
+    requires_ability_data::<GameplayTags::HeavyAttack::Tag>();
+    requires_ability_data::<GameplayTags::Status::Tag>();
+    requires_movement_data::<GameplayTags::Movement::Dash::Tag>();
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn test_gid_still_works() {
     // Ensure GID generation still works correctly
     let basic_gid = GameplayTags::BasicAttack::GID;
     let heavy_gid = GameplayTags::HeavyAttack::GID;
-    let sprint_gid = GameplayTags::Sprint::GID;
+    let sprint_gid = GameplayTags::Movement::Sprint::GID;
 
     // All GIDs should be unique
     assert_ne!(basic_gid, heavy_gid);
@@ -96,10 +96,10 @@ fn test_gid_still_works() {
 fn test_namespace_tag_trait_still_works() {
     assert_eq!(GameplayTags::BasicAttack::PATH, "BasicAttack");
     assert_eq!(GameplayTags::HeavyAttack::PATH, "HeavyAttack");
-    assert_eq!(GameplayTags::Sprint::PATH, "Movement.Sprint");
+    assert_eq!(GameplayTags::Movement::Sprint::PATH, "Movement.Sprint");
 
     assert_eq!(GameplayTags::BasicAttack::DEPTH, 0);
-    assert_eq!(GameplayTags::Sprint::DEPTH, 1);
+    assert_eq!(GameplayTags::Movement::Sprint::DEPTH, 1);
 }
 
 #[test]
@@ -119,13 +119,13 @@ fn test_serialization() {
 #[test]
 fn test_mixed_features() {
     // Node with both metadata and data type
-    assert_eq!(GameplayTags::HeavyAttack::DAMAGE, 100);
-    assert_eq!(GameplayTags::HeavyAttack::COOLDOWN, 2.5);
+    assert_eq!(GameplayTags::HeavyAttack::Tag::DAMAGE, 100);
+    assert_eq!(GameplayTags::HeavyAttack::Tag::COOLDOWN, 2.5);
 
     // Has associated data type
     fn check_has_data<T: HasData>() -> &'static str {
         T::PATH
     }
 
-    assert_eq!(check_has_data::<GameplayTags::HeavyAttack>(), "HeavyAttack");
+    assert_eq!(check_has_data::<GameplayTags::HeavyAttack::Tag>(), "HeavyAttack");
 }

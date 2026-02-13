@@ -218,6 +218,7 @@ impl NamespaceRegistry {
         }
 
         // Ensure all parent nodes exist (auto-create)
+        // Note: DFS order will be rebuilt after the final node is added
         for i in 0..segments.len() - 1 {
             let parent_path: String = segments[..=i].join(".");
             if self.path_to_idx.contains_key(&parent_path) {
@@ -235,7 +236,7 @@ impl NamespaceRegistry {
             });
             self.path_to_idx.insert(parent_path, idx);
             self.gid_to_idx.insert(gid, idx);
-            self.dfs_order.push(gid);
+            // Don't push to dfs_order here - will be rebuilt at the end
         }
 
         // Register the actual node
@@ -251,7 +252,6 @@ impl NamespaceRegistry {
             ));
         }
 
-        // FIXME: after dynmaic register, it is not guarantee the dfs order
         let idx = self.entries.len();
         self.entries.push(NamespaceEntry {
             gid,
@@ -260,7 +260,9 @@ impl NamespaceRegistry {
         });
         self.path_to_idx.insert(path.to_string(), idx);
         self.gid_to_idx.insert(gid, idx);
-        self.dfs_order.push(gid);
+
+        // Rebuild DFS order to maintain correct ordering
+        self.rebuild_dfs_order();
 
         // Update max depth if needed
         if depth >= self.max_depth {
@@ -268,6 +270,49 @@ impl NamespaceRegistry {
         }
 
         Ok(gid)
+    }
+
+    /// Rebuild DFS order from current entries.
+    ///
+    /// DFS order: parent before children, siblings in alphabetical order.
+    fn rebuild_dfs_order(&mut self) {
+        // Build children map: parent_path -> sorted children (path, gid)
+        let mut children: HashMap<Option<String>, Vec<(String, GID)>> = HashMap::new();
+
+        for entry in &self.entries {
+            let parent = if let Some(pos) = entry.path.rfind('.') {
+                Some(entry.path[..pos].to_string())
+            } else {
+                None
+            };
+            children
+                .entry(parent)
+                .or_default()
+                .push((entry.path.clone(), entry.gid));
+        }
+
+        // Sort children alphabetically for deterministic order
+        for list in children.values_mut() {
+            list.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+
+        // DFS traversal
+        self.dfs_order.clear();
+        Self::dfs_collect_order_recursive(None, &children, &mut self.dfs_order);
+    }
+
+    fn dfs_collect_order_recursive(
+        parent: Option<&str>,
+        children: &HashMap<Option<String>, Vec<(String, GID)>>,
+        out: &mut Vec<GID>,
+    ) {
+        let key = parent.map(|s| s.to_string());
+        if let Some(kids) = children.get(&key) {
+            for (path, gid) in kids {
+                out.push(*gid);
+                Self::dfs_collect_order_recursive(Some(path), children, out);
+            }
+        }
     }
 
     /// Check if a path is registered.
@@ -1075,6 +1120,84 @@ mod tests {
     // =========================================================================
     // Standalone is_descendant_of with dynamic GIDs
     // =========================================================================
+
+    #[test]
+    fn dynamic_register_maintains_dfs_order() {
+        let mut reg = NamespaceRegistry::new();
+
+        // Register in non-DFS order
+        reg.register("B").unwrap();
+        reg.register("A").unwrap();
+        reg.register("A.C").unwrap();
+        reg.register("A.B").unwrap(); // A.B < A.C alphabetically
+        reg.register("B.A").unwrap();
+
+        // DFS order should be: A, A.B, A.C, B, B.A
+        let paths: Vec<&str> = reg
+            .dfs_order()
+            .iter()
+            .filter_map(|&gid| reg.path_of(gid))
+            .collect();
+
+        assert_eq!(paths, vec!["A", "A.B", "A.C", "B", "B.A"]);
+    }
+
+    #[test]
+    fn dynamic_register_dfs_order_with_deep_nesting() {
+        let mut reg = NamespaceRegistry::new();
+
+        // Register deep path first, then siblings
+        reg.register("Root.Child.Grandchild").unwrap();
+        reg.register("Root.Another").unwrap(); // Another < Child alphabetically
+        reg.register("Root.Child.Alpha").unwrap(); // Alpha < Grandchild
+
+        // DFS order: Root, Root.Another, Root.Child, Root.Child.Alpha, Root.Child.Grandchild
+        let paths: Vec<&str> = reg
+            .dfs_order()
+            .iter()
+            .filter_map(|&gid| reg.path_of(gid))
+            .collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                "Root",
+                "Root.Another",
+                "Root.Child",
+                "Root.Child.Alpha",
+                "Root.Child.Grandchild"
+            ]
+        );
+    }
+
+    #[test]
+    fn dynamic_register_dfs_order_mixed_with_static() {
+        // Start with static defs
+        let defs = &[
+            NamespaceDef::new("Combat", None),
+            NamespaceDef::new("Combat.Attack", Some("Combat")),
+        ];
+        let mut reg = NamespaceRegistry::build(defs).unwrap();
+
+        // DFS should be: Combat, Combat.Attack
+        let paths_before: Vec<&str> = reg
+            .dfs_order()
+            .iter()
+            .filter_map(|&gid| reg.path_of(gid))
+            .collect();
+        assert_eq!(paths_before, vec!["Combat", "Combat.Attack"]);
+
+        // Register Combat.Ability (alphabetically before Attack)
+        reg.register("Combat.Ability").unwrap();
+
+        // DFS should now be: Combat, Combat.Ability, Combat.Attack
+        let paths_after: Vec<&str> = reg
+            .dfs_order()
+            .iter()
+            .filter_map(|&gid| reg.path_of(gid))
+            .collect();
+        assert_eq!(paths_after, vec!["Combat", "Combat.Ability", "Combat.Attack"]);
+    }
 
     #[test]
     fn standalone_is_descendant_of_works_with_dynamic_gids() {

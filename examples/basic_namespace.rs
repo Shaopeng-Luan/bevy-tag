@@ -37,23 +37,23 @@ namespace! {
 fn main() {
     println!("=== Basic Namespace Example ===\n");
 
-    // 1. Access GIDs directly via the struct type (CamelCase)
+    // 1. Access GIDs via module-level constants
     println!("Direct GID access:");
-    println!("  Movement::GID        = {:#034x}", GameTags::Movement);
-    println!("  Combat::GID          = {:#034x}", GameTags::Combat);
+    println!("  Movement::GID        = {:#034x}", GameTags::Movement::GID);
+    println!("  Combat::GID          = {:#034x}", GameTags::Combat::GID);
     println!();
 
-    // 2. Access children via snake_case module
-    println!("Child access via snake_case module:");
-    println!("  combat::Attack::GID  = {:#034x}", GameTags::combat::Attack);
-    println!("  movement::Running::PATH = {}", GameTags::movement::Running::PATH);
-    println!("  movement::Running::DEPTH = {}", GameTags::movement::Running::DEPTH);
+    // 2. Access children via nested modules (CamelCase)
+    println!("Child access via nested modules:");
+    println!("  Combat::Attack::GID  = {:#034x}", GameTags::Combat::Attack::GID);
+    println!("  Movement::Running::PATH = {}", GameTags::Movement::Running::PATH);
+    println!("  Movement::Running::DEPTH = {}", GameTags::Movement::Running::DEPTH);
     println!();
 
-    // 3. Nested children
-    println!("Nested children:");
-    println!("  combat::attack::Melee::PATH  = {}", GameTags::combat::attack::Melee::PATH);
-    println!("  combat::attack::Melee::DEPTH = {}", GameTags::combat::attack::Melee::DEPTH);
+    // 3. Deeply nested children
+    println!("Deeply nested children:");
+    println!("  Combat::Attack::Melee::PATH  = {}", GameTags::Combat::Attack::Melee::PATH);
+    println!("  Combat::Attack::Melee::DEPTH = {}", GameTags::Combat::Attack::Melee::DEPTH);
     println!();
 
     // 4. Build a registry for runtime lookups
@@ -73,16 +73,16 @@ fn main() {
 
     // 6. GID → Path lookup
     println!("GID → Path lookup:");
-    let gid = GameTags::status::Buff;
+    let gid = GameTags::Status::Buff::GID;
     if let Some(path) = registry.path_of(gid) {
         println!("  {:#034x} → '{}'", gid, path);
     }
     println!();
 
-    // 7. Use NamespaceTag trait
+    // 7. Use NamespaceTag trait with Tag types
     println!("Using NamespaceTag trait:");
-    print_tag_info::<GameTags::Block>();
-    print_tag_info::<GameTags::Jumping>();
+    print_tag_info::<GameTags::Combat::Defend::Block::Tag>();
+    print_tag_info::<GameTags::Movement::Jumping::Tag>();
 }
 
 fn print_tag_info<T: NamespaceTag>() {

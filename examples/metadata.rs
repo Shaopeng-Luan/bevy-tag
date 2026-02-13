@@ -51,21 +51,21 @@ fn main() {
 
     println!("--- Static Metadata (compile-time constants) ---\n");
 
-    // Access static metadata directly on struct type
+    // Access static metadata directly on Tag struct
     println!("Fireball:");
-    println!("  Mana cost: {}", Abilities::Fireball::MANA_COST);
-    println!("  Cooldown:  {}s", Abilities::Fireball::COOLDOWN);
+    println!("  Mana cost: {}", Abilities::Fireball::Tag::MANA_COST);
+    println!("  Cooldown:  {}s", Abilities::Fireball::Tag::COOLDOWN);
     println!();
 
     println!("MeteorStrike:");
-    println!("  Mana cost:   {}", Abilities::MeteorStrike::MANA_COST);
-    println!("  Cooldown:    {}s", Abilities::MeteorStrike::COOLDOWN);
-    println!("  Is ultimate: {}", Abilities::MeteorStrike::IS_ULTIMATE);
+    println!("  Mana cost:   {}", Abilities::MeteorStrike::Tag::MANA_COST);
+    println!("  Cooldown:    {}s", Abilities::MeteorStrike::Tag::COOLDOWN);
+    println!("  Is ultimate: {}", Abilities::MeteorStrike::Tag::IS_ULTIMATE);
     println!();
 
     println!("IceShard:");
-    println!("  Mana cost: {}", Abilities::IceShard::MANA_COST);
-    println!("  Cooldown:  {}s", Abilities::IceShard::COOLDOWN);
+    println!("  Mana cost: {}", Abilities::IceShard::Tag::MANA_COST);
+    println!("  Cooldown:  {}s", Abilities::IceShard::Tag::COOLDOWN);
     println!();
 
     // =========================================================================
@@ -76,13 +76,13 @@ fn main() {
 
     let mut registry = NamespaceRegistry::build(Abilities::DEFINITIONS).unwrap();
 
-    // Set primitive typed metadata - accepts Tag directly!
-    registry.set_meta(Abilities::Fireball, "damage", &100i32);
-    registry.set_meta(Abilities::Fireball, "range", &15.0f32);
+    // Set primitive typed metadata - use module-level GID const
+    registry.set_meta(Abilities::Fireball::GID, "damage", &100i32);
+    registry.set_meta(Abilities::Fireball::GID, "range", &15.0f32);
 
     // Get primitive typed metadata
-    let damage = registry.get_meta::<i32>(Abilities::Fireball, "damage");
-    let range = registry.get_meta::<f32>(Abilities::Fireball, "range");
+    let damage = registry.get_meta::<i32>(Abilities::Fireball::GID, "damage");
+    let range = registry.get_meta::<f32>(Abilities::Fireball::GID, "range");
     println!("Fireball (primitives):");
     println!("  Damage: {:?}", damage);
     println!("  Range:  {:?}", range);
@@ -94,17 +94,17 @@ fn main() {
         range: 15.0,
         aoe_radius: 3.0,
     };
-    registry.set_meta(Abilities::Fireball, "stats", &fireball_stats);
+    registry.set_meta(Abilities::Fireball::GID, "stats", &fireball_stats);
 
     let meteor_stats = AbilityStats {
         damage: 500,
         range: 30.0,
         aoe_radius: 10.0,
     };
-    registry.set_meta(Abilities::MeteorStrike, "stats", &meteor_stats);
+    registry.set_meta(Abilities::MeteorStrike::GID, "stats", &meteor_stats);
 
     // Get custom struct metadata
-    if let Some(stats) = registry.get_meta::<AbilityStats>(Abilities::Fireball, "stats") {
+    if let Some(stats) = registry.get_meta::<AbilityStats>(Abilities::Fireball::GID, "stats") {
         println!("Fireball (struct):");
         println!("  Damage:     {}", stats.damage);
         println!("  Range:      {}", stats.range);
@@ -112,7 +112,7 @@ fn main() {
     }
     println!();
 
-    if let Some(stats) = registry.get_meta::<AbilityStats>(Abilities::MeteorStrike, "stats") {
+    if let Some(stats) = registry.get_meta::<AbilityStats>(Abilities::MeteorStrike::GID, "stats") {
         println!("MeteorStrike (struct):");
         println!("  Damage:     {}", stats.damage);
         println!("  Range:      {}", stats.range);
@@ -129,16 +129,16 @@ fn main() {
     // Check if metadata exists
     println!(
         "Fireball has 'damage': {}",
-        registry.has_meta(Abilities::Fireball, "damage")
+        registry.has_meta(Abilities::Fireball::GID, "damage")
     );
     println!(
         "IceShard has 'damage': {}",
-        registry.has_meta(Abilities::IceShard, "damage")
+        registry.has_meta(Abilities::IceShard::GID, "damage")
     );
     println!();
 
     // List all metadata keys
-    if let Some(keys) = registry.meta_keys(Abilities::Fireball) {
+    if let Some(keys) = registry.meta_keys(Abilities::Fireball::GID) {
         let keys: Vec<_> = keys.collect();
         println!("Fireball metadata keys: {:?}", keys);
     }
@@ -146,18 +146,18 @@ fn main() {
 
     // Overwrite metadata
     println!("Updating Fireball damage from 100 to 150...");
-    registry.set_meta(Abilities::Fireball, "damage", &150i32);
-    let new_damage = registry.get_meta::<i32>(Abilities::Fireball, "damage");
+    registry.set_meta(Abilities::Fireball::GID, "damage", &150i32);
+    let new_damage = registry.get_meta::<i32>(Abilities::Fireball::GID, "damage");
     println!("New damage: {:?}", new_damage);
     println!();
 
     // Remove metadata
     println!("Removing Fireball 'range' metadata...");
-    let removed = registry.remove_meta(Abilities::Fireball, "range");
+    let removed = registry.remove_meta(Abilities::Fireball::GID, "range");
     println!("Removed: {}", removed.is_some());
     println!(
         "Fireball has 'range': {}",
-        registry.has_meta(Abilities::Fireball, "range")
+        registry.has_meta(Abilities::Fireball::GID, "range")
     );
     println!();
 
@@ -168,13 +168,13 @@ fn main() {
     println!("--- Type Safety ---\n");
 
     // Wrong type returns None (size mismatch)
-    let wrong_type = registry.get_meta::<u64>(Abilities::Fireball, "damage");
+    let wrong_type = registry.get_meta::<u64>(Abilities::Fireball::GID, "damage");
     println!(
         "Reading i32 damage as u64: {:?} (None = type mismatch)",
         wrong_type
     );
 
     // Correct type works
-    let correct_type = registry.get_meta::<i32>(Abilities::Fireball, "damage");
+    let correct_type = registry.get_meta::<i32>(Abilities::Fireball::GID, "damage");
     println!("Reading i32 damage as i32: {:?}", correct_type);
 }

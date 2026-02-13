@@ -49,17 +49,17 @@ namespace! {
 
 fn main() {
     // Compile-time GID access
-    let idle_gid = Tags::movement::Idle::GID;
+    let idle_gid = Tags::Movement::Idle::GID;
 
     // O(1) subtree check - no registry needed
-    let dominated  = Tags::movement::Running::GID;
-    assert!(gid_is_descendant_of(dominated, Tags::Movement::GID));
-    assert!(!gid_is_descendant_of(dominated, Tags::Combat::GID));
+    let running_gid = Tags::Movement::Running::GID;
+    assert!(gid_is_descendant_of(running_gid, Tags::Movement::GID));
+    assert!(!gid_is_descendant_of(running_gid, Tags::Combat::GID));
 
     // Runtime registry for path lookup
     let registry = NamespaceRegistry::build(Tags::DEFINITIONS).unwrap();
     assert_eq!(registry.path_of(idle_gid), Some("Movement.Idle"));
-    assert_eq!(registry.gid_of("Combat.Attack"), Some(Tags::combat::Attack::GID));
+    assert_eq!(registry.gid_of("Combat.Attack"), Some(Tags::Combat::Attack::GID));
 }
 ```
 
@@ -92,7 +92,7 @@ if gid_is_descendant_of(entity_tag, Tags::Movement::GID) {
 ```rust
 use bevy_tag::{depth_of, parent_of, is_sibling};
 
-let tag = Tags::movement::Idle::GID;
+let tag = Tags::Movement::Idle::GID;
 
 // Get depth (0 = root level)
 assert_eq!(depth_of(tag), 1);
@@ -102,8 +102,8 @@ assert_eq!(parent_of(tag), Some(Tags::Movement::GID));
 
 // Check if two tags share a parent
 assert!(is_sibling(
-    Tags::movement::Idle::GID,
-    Tags::movement::Running::GID
+    Tags::Movement::Idle::GID,
+    Tags::Movement::Running::GID
 ));
 ```
 
@@ -147,8 +147,8 @@ namespace! {
 
 // Using old path triggers deprecation warning
 #[allow(deprecated)]
-let old = Tags::legacy::OldSword::GID;
-let new = Tags::equipment::weapon::Blade::GID;
+let old = Tags::Legacy::OldSword::GID;
+let new = Tags::Equipment::Weapon::Blade::GID;
 assert_eq!(old, new);  // Same GID!
 ```
 
@@ -198,16 +198,55 @@ namespace! {
     }
 }
 
-// Access metadata as associated constants
-assert_eq!(Abilities::Fireball::MANA_COST, 10);
-assert_eq!(Abilities::Fireball::COOLDOWN, 5.0);
+// Access metadata as associated constants on Tag
+assert_eq!(Abilities::Fireball::Tag::MANA_COST, 10);
+assert_eq!(Abilities::Fireball::Tag::COOLDOWN, 5.0);
+```
+
+## Bevy Integration
+
+Use tags as entity components in Bevy:
+
+```rust
+use bevy::prelude::*;
+use bevy_tag::bevy::{NamespacePlugin, TagContainer};
+
+fn main() {
+    App::new()
+        .add_plugins(MinimalPlugins)
+        .add_plugins(NamespacePlugin::from_definitions(Tags::DEFINITIONS))
+        .add_systems(Startup, spawn_entities)
+        .add_systems(Update, check_movement)
+        .run();
+}
+
+fn spawn_entities(mut commands: Commands) {
+    // Single tag
+    commands.spawn(TagContainer::single(Tags::Movement::Running::GID));
+
+    // Multiple tags with builder pattern
+    commands.spawn(
+        TagContainer::new()
+            .with(Tags::Movement::Idle::GID)
+            .with(Tags::Combat::Block::GID)
+    );
+}
+
+fn check_movement(query: Query<&TagContainer>) {
+    for tags in query.iter() {
+        // O(1) subtree check
+        if tags.has_descendant_of(Tags::Movement::GID) {
+            // Entity has a movement-related tag
+        }
+    }
+}
 ```
 
 ## Crate Structure
 
 | Crate | Description |
 |-------|-------------|
-| `bevy-tag` | Core library with GID operations and registry |
+| `bevy-tag` | Core library with GID operations, registry, and Bevy integration |
 | `bevy-tag-macro` | `namespace!` procedural macro |
 | `bevy-tag-build` | Build-time TOML parsing and code generation |
 

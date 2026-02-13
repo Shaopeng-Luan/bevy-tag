@@ -6,16 +6,8 @@ use syn::{braced, token, Expr, Ident, Result, Token, Type, Visibility};
 
 use proc_macro_crate::{crate_name, FoundCrate};
 
-// =============================================================================
-// Constants - must match bevy-tag's layout.rs
-// =============================================================================
-
 /// Maximum supported tree depth (0-7, encoded in 3 bits).
 const MAX_DEPTH: usize = 8;
-
-// =============================================================================
-// Parsing
-// =============================================================================
 
 /// Metadata attribute: #[key = value]
 #[derive(Clone)]
@@ -220,90 +212,12 @@ fn namespace_crate_path() -> TokenStream2 {
 // Code generation
 // =============================================================================
 
-/// Generate tag struct and its implementations.
-fn generate_tag_impl(
-    node_ident: &Ident,
-    path_lit: &syn::LitStr,
-    depth_lit: u8,
-    seg_count: usize,
-    seg_lits: &[syn::LitByteStr],
-    metadata: &TokenStream2,
-    ns_crate: &TokenStream2,
-) -> TokenStream2 {
-    quote! {
-        /// Zero-sized tag type for this namespace node.
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-        pub struct #node_ident;
-
-        impl #node_ident {
-            /// Full dot-separated path.
-            pub const PATH: &'static str = #path_lit;
-
-            /// Depth in the namespace tree (0 = top-level).
-            pub const DEPTH: u8 = #depth_lit;
-
-            /// Stable hierarchical GID, computed at compile time.
-            pub const GID: #ns_crate::GID = {
-                const SEGS: [&[u8]; #seg_count] = [#(#seg_lits),*];
-                #ns_crate::hierarchical_gid(&SEGS)
-            };
-
-            /// Get the GID (convenience method).
-            #[inline]
-            pub const fn gid() -> #ns_crate::GID {
-                Self::GID
-            }
-
-            #metadata
-        }
-
-        impl core::fmt::Display for #node_ident {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                f.write_str(Self::PATH)
-            }
-        }
-
-        impl core::fmt::LowerHex for #node_ident {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                core::fmt::LowerHex::fmt(&Self::GID, f)
-            }
-        }
-
-        impl core::fmt::UpperHex for #node_ident {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                core::fmt::UpperHex::fmt(&Self::GID, f)
-            }
-        }
-
-        impl #ns_crate::NamespaceTag for #node_ident {
-            const PATH: &'static str = #path_lit;
-            const DEPTH: u8 = #depth_lit;
-            const GID: #ns_crate::GID = #node_ident::GID;
-        }
-    }
-}
-
-/// Convert CamelCase to snake_case.
-fn to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if c.is_uppercase() {
-            if i > 0 {
-                result.push('_');
-            }
-            result.push(c.to_ascii_lowercase());
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
-/// Recursively generate tag types using CamelCase struct + snake_case module pattern.
+/// Recursively generate tag types using module-based pattern.
 ///
 /// Strategy:
-/// - All nodes get a CamelCase struct (the tag type)
-/// - Branch nodes also get a snake_case module containing re-exports of children
+/// - Each node becomes a module containing `pub struct Tag` and convenience consts
+/// - Children are nested modules inside the parent module
+/// - No snake_case/CamelCase mismatch - module names match path segments exactly
 ///
 /// Example:
 /// ```ignore
@@ -313,55 +227,55 @@ fn to_snake_case(s: &str) -> String {
 ///             Idle;        // Leaf
 ///             Running;     // Leaf
 ///         }
+///         Combat {
+///             Idle;        // Same name as Movement.Idle - no conflict!
+///         }
 ///         Simple;          // Leaf at root
 ///     }
 /// }
 ///
 /// // Generates:
+/// #[allow(non_snake_case)]
 /// pub mod Tags {
-///     pub struct Movement;  // CamelCase struct
-///     impl Movement { pub const PATH, GID, ... }
+///     pub mod Movement {
+///         pub struct Tag;
+///         pub const GID: GID = Tag::GID;
+///         pub const PATH: &str = Tag::PATH;
 ///
-///     pub mod movement {    // snake_case module for children
-///         pub use super::Idle;
-///         pub use super::Running;
+///         pub mod Idle {
+///             pub struct Tag;
+///             pub const GID: GID = Tag::GID;
+///         }
+///         pub mod Running { ... }
 ///     }
 ///
-///     pub struct Idle;
-///     impl Idle { pub const PATH = "Movement.Idle", ... }
+///     pub mod Combat {
+///         pub struct Tag;
+///         pub mod Idle { ... }  // No conflict with Movement::Idle!
+///     }
 ///
-///     pub struct Running;
-///     impl Running { ... }
-///
-///     pub struct Simple;
-///     impl Simple { ... }
+///     pub mod Simple {
+///         pub struct Tag;
+///         pub const GID: GID = Tag::GID;
+///     }
 /// }
 ///
 /// // Usage:
-/// Tags::Movement              // The Movement tag (type)
-/// Tags::Movement::GID         // Movement's GID
-/// Tags::movement::Idle        // Child via snake_case module
-/// Tags::movement::Idle::GID   // Child's GID
-/// Tags::Simple                // Leaf at root
+/// Tags::Movement::Tag         // The Movement tag type
+/// Tags::Movement::GID         // Convenience const
+/// Tags::Movement::Idle::Tag   // Child tag type
+/// Tags::Movement::Idle::GID   // Child's GID
 /// ```
 /// Convert a dot-separated path to a Rust type path relative to the module root.
 ///
-/// Example: "Equipment.Weapon.Blade" -> equipment::weapon::Blade
+/// Example: "Equipment.Weapon.Blade" -> Equipment::Weapon::Blade::Tag
 fn path_to_rust_type_path(path: &str) -> TokenStream2 {
     let segments: Vec<&str> = path.split('.').collect();
-    if segments.len() == 1 {
-        // Root level: just the type name
-        let ident = Ident::new(segments[0], Span::call_site());
-        quote! { #ident }
-    } else {
-        // Nested: snake_case modules + CamelCase type
-        let modules: Vec<Ident> = segments[..segments.len() - 1]
-            .iter()
-            .map(|s| Ident::new(&to_snake_case(s), Span::call_site()))
-            .collect();
-        let type_name = Ident::new(segments.last().unwrap(), Span::call_site());
-        quote! { #(#modules::)* #type_name }
-    }
+    let modules: Vec<Ident> = segments
+        .iter()
+        .map(|s| Ident::new(s, Span::call_site()))
+        .collect();
+    quote! { #(#modules::)*Tag }
 }
 
 fn generate_tags_recursive(
@@ -401,7 +315,7 @@ fn generate_tags_recursive(
 
         // Check if this node is a redirect
         if let Some(ref target_path) = node.attrs.redirect_to {
-            // Generate type alias: pub type OldName = Redirect<target::path::Type>;
+            // Generate module with type alias: pub mod OldName { pub type Tag = Redirect<...>; }
             let target_type = path_to_rust_type_path(target_path);
 
             // Add deprecation note about redirect if not already deprecated
@@ -415,7 +329,14 @@ fn generate_tags_recursive(
 
             output.push(quote! {
                 #redirect_deprecation
-                pub type #node_ident = #ns_crate::Redirect<#target_type>;
+                #[allow(non_snake_case)]
+                pub mod #node_ident {
+                    use super::*;
+                    pub type Tag = #ns_crate::Redirect<#target_type>;
+                    pub const GID: #ns_crate::GID = <Tag as #ns_crate::NamespaceTag>::GID;
+                    pub const PATH: &'static str = <Tag as #ns_crate::NamespaceTag>::PATH;
+                    pub const DEPTH: u8 = <Tag as #ns_crate::NamespaceTag>::DEPTH;
+                }
             });
 
             // Redirects cannot have children
@@ -446,9 +367,9 @@ fn generate_tags_recursive(
         let metadata = generate_metadata_consts(&node.attrs.meta);
 
         // Generate data type association if present
-        let data_type_def = if let Some(ref ty) = node.data_type {
+        let data_type_impl = if let Some(ref ty) = node.data_type {
             quote! {
-                impl #ns_crate::HasData for #node_ident {
+                impl #ns_crate::HasData for Tag {
                     type Data = #ty;
                 }
             }
@@ -456,89 +377,81 @@ fn generate_tags_recursive(
             quote! {}
         };
 
-        // Generate tag implementation
-        let tag_impl = generate_tag_impl(
-            node_ident,
-            &path_lit,
-            depth_lit,
-            seg_count,
-            &seg_lits,
-            &metadata,
-            ns_crate,
-        );
-
-        // Generate children recursively (they are flat siblings)
+        // Generate children recursively
         let children_output = if !node.children.is_empty() {
             generate_tags_recursive(&node.children, &path, depth + 1, ns_crate)
         } else {
             Vec::new()
         };
 
-        // Generate snake_case module with re-exports for branch nodes
-        let child_module = if !node.children.is_empty() {
-            let snake_name = to_snake_case(&node.name.to_string());
-            let mod_ident = Ident::new(&snake_name, node.name.span());
-
-            // Collect all descendant names for re-export (direct children only)
-            let reexports: Vec<TokenStream2> = node
-                .children
-                .iter()
-                .map(|child| {
-                    let child_ident = &child.name;
-                    let child_deprecation = if child.attrs.deprecation.is_deprecated {
-                        if let Some(ref note) = child.attrs.deprecation.note {
-                            let note_lit = syn::LitStr::new(note, Span::call_site());
-                            quote! { #[deprecated(note = #note_lit)] }
-                        } else {
-                            quote! { #[deprecated] }
-                        }
-                    } else if child.attrs.redirect_to.is_some() {
-                        // Redirects are implicitly deprecated
-                        quote! { #[deprecated] }
-                    } else {
-                        quote! {}
-                    };
-
-                    // If child has children, also re-export its snake_case module
-                    if !child.children.is_empty() {
-                        let child_snake = to_snake_case(&child.name.to_string());
-                        let child_mod_ident = Ident::new(&child_snake, child.name.span());
-                        quote! {
-                            #child_deprecation
-                            pub use super::#child_ident;
-                            #child_deprecation
-                            pub use super::#child_mod_ident;
-                        }
-                    } else {
-                        quote! {
-                            #child_deprecation
-                            pub use super::#child_ident;
-                        }
-                    }
-                })
-                .collect();
-
-            quote! {
-                #deprecation_attr
-                #[allow(non_camel_case_types)]
-                pub mod #mod_ident {
-                    #(#reexports)*
-                }
-            }
-        } else {
-            quote! {}
-        };
-
-        // Output: first all children (flat), then this node, then child module
-        output.extend(children_output);
+        // Generate the module containing Tag struct and children
         output.push(quote! {
             #deprecation_attr
-            #tag_impl
-            #data_type_def
+            #[allow(non_snake_case)]
+            pub mod #node_ident {
+                use super::*;
+
+                /// Zero-sized tag type for this namespace node.
+                #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+                pub struct Tag;
+
+                impl Tag {
+                    /// Full dot-separated path.
+                    pub const PATH: &'static str = #path_lit;
+
+                    /// Depth in the namespace tree (0 = top-level).
+                    pub const DEPTH: u8 = #depth_lit;
+
+                    /// Stable hierarchical GID, computed at compile time.
+                    pub const GID: #ns_crate::GID = {
+                        const SEGS: [&[u8]; #seg_count] = [#(#seg_lits),*];
+                        #ns_crate::hierarchical_gid(&SEGS)
+                    };
+
+                    /// Get the GID (convenience method).
+                    #[inline]
+                    pub const fn gid() -> #ns_crate::GID {
+                        Self::GID
+                    }
+
+                    #metadata
+                }
+
+                impl core::fmt::Display for Tag {
+                    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                        f.write_str(Self::PATH)
+                    }
+                }
+
+                impl core::fmt::LowerHex for Tag {
+                    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                        core::fmt::LowerHex::fmt(&Self::GID, f)
+                    }
+                }
+
+                impl core::fmt::UpperHex for Tag {
+                    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                        core::fmt::UpperHex::fmt(&Self::GID, f)
+                    }
+                }
+
+                impl #ns_crate::NamespaceTag for Tag {
+                    const PATH: &'static str = #path_lit;
+                    const DEPTH: u8 = #depth_lit;
+                    const GID: #ns_crate::GID = Tag::GID;
+                }
+
+                #data_type_impl
+
+                // Module-level convenience constants
+                pub const GID: #ns_crate::GID = Tag::GID;
+                pub const PATH: &'static str = Tag::PATH;
+                pub const DEPTH: u8 = Tag::DEPTH;
+
+                // Nested child modules
+                #(#children_output)*
+            }
         });
-        if !node.children.is_empty() {
-            output.push(child_module);
-        }
     }
 
     output
@@ -735,4 +648,111 @@ pub fn namespace(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that same-named children under different parents generate unique paths.
+    /// This verifies the module-based code generation doesn't cause naming conflicts.
+    #[test]
+    fn test_same_name_different_roots_no_conflict() {
+        // Simulate: Combat { Attack; } Movement { Attack; }
+        let nodes = vec![
+            Node {
+                name: Ident::new("Combat", Span::call_site()),
+                data_type: None,
+                attrs: NodeAttrs::default(),
+                children: vec![Node {
+                    name: Ident::new("Attack", Span::call_site()),
+                    data_type: None,
+                    attrs: NodeAttrs::default(),
+                    children: vec![],
+                }],
+            },
+            Node {
+                name: Ident::new("Movement", Span::call_site()),
+                data_type: None,
+                attrs: NodeAttrs::default(),
+                children: vec![Node {
+                    name: Ident::new("Attack", Span::call_site()),
+                    data_type: None,
+                    attrs: NodeAttrs::default(),
+                    children: vec![],
+                }],
+            },
+        ];
+
+        let ns_crate = quote!(::bevy_tag);
+        let output = generate_tags_recursive(&nodes, "", 0, &ns_crate);
+
+        // Should generate 2 top-level modules (Combat and Movement)
+        assert_eq!(output.len(), 2);
+
+        let code = quote! { #(#output)* }.to_string();
+
+        // Verify both modules exist
+        assert!(code.contains("pub mod Combat"));
+        assert!(code.contains("pub mod Movement"));
+
+        // Verify nested Attack modules have correct paths
+        assert!(code.contains("\"Combat.Attack\""));
+        assert!(code.contains("\"Movement.Attack\""));
+
+        // Verify no flat re-exports that would cause conflicts
+        // The old buggy code would have generated conflicting `pub use combat::Attack`
+        assert!(!code.contains("pub use"));
+    }
+
+    /// Test deeply nested same names don't conflict.
+    #[test]
+    fn test_deeply_nested_same_names_no_conflict() {
+        // Simulate: A { X { Y; } } B { X { Y; } }
+        let nodes = vec![
+            Node {
+                name: Ident::new("A", Span::call_site()),
+                data_type: None,
+                attrs: NodeAttrs::default(),
+                children: vec![Node {
+                    name: Ident::new("X", Span::call_site()),
+                    data_type: None,
+                    attrs: NodeAttrs::default(),
+                    children: vec![Node {
+                        name: Ident::new("Y", Span::call_site()),
+                        data_type: None,
+                        attrs: NodeAttrs::default(),
+                        children: vec![],
+                    }],
+                }],
+            },
+            Node {
+                name: Ident::new("B", Span::call_site()),
+                data_type: None,
+                attrs: NodeAttrs::default(),
+                children: vec![Node {
+                    name: Ident::new("X", Span::call_site()),
+                    data_type: None,
+                    attrs: NodeAttrs::default(),
+                    children: vec![Node {
+                        name: Ident::new("Y", Span::call_site()),
+                        data_type: None,
+                        attrs: NodeAttrs::default(),
+                        children: vec![],
+                    }],
+                }],
+            },
+        ];
+
+        let ns_crate = quote!(::bevy_tag);
+        let output = generate_tags_recursive(&nodes, "", 0, &ns_crate);
+
+        let code = quote! { #(#output)* }.to_string();
+
+        // Verify all paths are unique
+        assert!(code.contains("\"A.X.Y\""));
+        assert!(code.contains("\"B.X.Y\""));
+        assert!(code.contains("\"A.X\""));
+        assert!(code.contains("\"B.X\""));
+    }
 }

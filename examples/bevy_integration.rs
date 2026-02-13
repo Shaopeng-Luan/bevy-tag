@@ -69,7 +69,7 @@ fn spawn_entities(mut commands: Commands) {
     commands.spawn((
         Player,
         Name("Hero"),
-        TagContainer::single(Tags::movement::Running::GID),
+        TagContainer::single(Tags::Movement::Running::GID),
     ));
 
     // Enemy with multiple tags using TagContainer
@@ -77,8 +77,8 @@ fn spawn_entities(mut commands: Commands) {
         Enemy,
         Name("Goblin"),
         TagContainer::new()
-            .with(Tags::movement::Idle::GID)
-            .with(Tags::combat::Attack::GID),
+            .with(Tags::Movement::Idle::GID)
+            .with(Tags::Combat::Attack::GID),
     ));
 
     // Another enemy with status effects
@@ -86,16 +86,16 @@ fn spawn_entities(mut commands: Commands) {
         Enemy,
         Name("Skeleton"),
         TagContainer::new()
-            .with(Tags::movement::Walking::GID)
-            .with(Tags::status::Poisoned::GID)
-            .with(Tags::status::Burning::GID),
+            .with(Tags::Movement::Walking::GID)
+            .with(Tags::Status::Poisoned::GID)
+            .with(Tags::Status::Burning::GID),
     ));
 
     // Entity with only status effects (no movement)
     commands.spawn((
         Enemy,
         Name("Ghost"),
-        TagContainer::single(Tags::status::Frozen::GID),
+        TagContainer::single(Tags::Status::Frozen::GID),
     ));
 }
 
@@ -145,13 +145,13 @@ fn check_status_effects(
         }
 
         // Check specific status
-        if container.has(Tags::status::Poisoned::GID) {
+        if container.has(Tags::Status::Poisoned::GID) {
             println!("    -> {} is poisoned!", name.0);
         }
-        if container.has(Tags::status::Burning::GID) {
+        if container.has(Tags::Status::Burning::GID) {
             println!("    -> {} is burning!", name.0);
         }
-        if container.has(Tags::status::Frozen::GID) {
+        if container.has(Tags::Status::Frozen::GID) {
             println!("    -> {} is frozen!", name.0);
         }
     }
@@ -159,7 +159,7 @@ fn check_status_effects(
 
     // Demonstrate standalone GID check (no registry needed)
     println!("--- Standalone GID Check (no registry) ---");
-    let running_gid = Tags::movement::Running::GID;
+    let running_gid = Tags::Movement::Running::GID;
     let movement_gid = Tags::Movement::GID;
     let combat_gid = Tags::Combat::GID;
 
